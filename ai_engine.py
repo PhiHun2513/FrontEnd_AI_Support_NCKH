@@ -1,19 +1,22 @@
-import google.generativeai as genai
 import os
+from google import genai # <--- Thư viện mới
 from pypdf import PdfReader
 from docx import Document 
 import re
+from dotenv import load_dotenv
+
+# Load biến môi trường ngay tại đây để đảm bảo có API Key
+load_dotenv()
 
 def configure_gemini():
-    """Cấu hình API Key từ biến môi trường"""
+    """Kiểm tra xem API Key có tồn tại không"""
     api_key = os.getenv("GOOGLE_API_KEY")
     if api_key:
-        genai.configure(api_key=api_key)
         return True
     return False
 
 def get_file_text(uploaded_file):
-    """Trích xuất văn bản và đánh dấu vị trí để truy vết"""
+    """Trích xuất văn bản và đánh dấu vị trí (Giữ nguyên logic cũ)"""
     file_extension = os.path.splitext(uploaded_file.name)[1].lower()
     content_with_tags = ""
     
@@ -36,45 +39,62 @@ def get_file_text(uploaded_file):
             
         return content_with_tags
     except Exception as e:
-        return f"Lỗi đọc file: {e}"
+        print(f"Lỗi đọc file: {e}")
+        return ""
 
 def ask_gemini(content, prompt):
-    """Gửi truy vấn đến Gemini và nhận câu trả lời"""
-    model = genai.GenerativeModel('gemini-2.5-flash')
-    
-    system_prompt = (
-        "Bạn là trợ lý nghiên cứu khoa học chuyên nghiệp. "
-    "Nhiệm vụ duy nhất của bạn là phân tích, tổng hợp và trả lời "
-    "DỰA HOÀN TOÀN trên nội dung tài liệu mà người dùng đã cung cấp.\n\n"
+    """Gửi truy vấn đến Gemini bằng SDK MỚI (google-genai)"""
+    try:
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            return "Lỗi: Chưa cấu hình GOOGLE_API_KEY"
 
-    "QUY TẮC BẮT BUỘC:\n"
-    "1. TUYỆT ĐỐI KHÔNG sử dụng kiến thức bên ngoài tài liệu.\n"
-    "2. KHÔNG suy đoán, KHÔNG bịa đặt, KHÔNG bổ sung kiến thức nền.\n"
-    "3. Nếu tài liệu KHÔNG đủ thông tin, hãy trả lời đúng câu sau và không nói thêm:\n"
-    "   'Tài liệu không cung cấp đủ thông tin để trả lời câu hỏi này.'\n"
-    "4. Mỗi ý trả lời BẮT BUỘC phải kèm trích dẫn nguồn.\n"
-    "   Định dạng trích dẫn: (Trang X) hoặc (Đoạn Y)\n"
-    "   dựa trên các thẻ [TRANG_X] hoặc [DOAN_Y] trong nội dung.\n"
-    "5. Nếu không thể trích dẫn nguồn, KHÔNG được trả lời.\n"
-    "6. Trả lời theo văn phong học thuật, khách quan, trung lập."
-    )
-    
-    full_query = f"{system_prompt}\n\nNỘI DUNG:\n{content}\n\nCÂU HỎI: {prompt}"
-    response = model.generate_content(full_query)
-    return response.text
+        # --- CẤU HÌNH THEO SDK MỚI ---
+        client = genai.Client(api_key=api_key)
+        
+        system_prompt = (
+            "Bạn là trợ lý nghiên cứu khoa học chuyên nghiệp. "
+            "Nhiệm vụ: Trả lời câu hỏi dựa trên nội dung tài liệu được cung cấp dưới đây.\n\n"
+            "QUY TẮC QUAN TRỌNG:\n"
+            "1. Nếu tài liệu là PDF (có thẻ [TRANG_X]), hãy trích dẫn nguồn dạng: (Trang X).\n"
+            "2. Nếu tài liệu là Word/Text (có thẻ [DOAN_X]), hãy trích dẫn nguồn dạng: (Trích đoạn X).\n"
+            "3. Tuyệt đối không bịa đặt thông tin không có trong tài liệu.\n"
+            "4. Nếu không tìm thấy thông tin, hãy trả lời trung thực là không có."
+        )
+        
+        full_query = f"{system_prompt}\n\n--- TÀI LIỆU ---\n{content}\n\n--- CÂU HỎI ---\n{prompt}"
+        
+        # Gọi model (Dùng gemini-2.5-flash cho nhanh và rẻ)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=full_query
+        )
+        
+        return response.text
+    except Exception as e:
+        return f"Lỗi AI: {e}"
 
 def create_source_map(text):
-    """Tạo bản đồ dữ liệu để tra cứu nhanh khi bấm xem nguồn"""
+    """Tạo bản đồ dữ liệu (Giữ nguyên logic cũ)"""
     source_map = {}
     
-    # Tìm nội dung theo trang (PDF) - Đã sửa lỗi biến pdf_parts
-    pdf_parts = re.findall(r"\[TRANG_(\d+)\]\n(.*?)(?=\n\[TRANG_|\Z)", text, re.DOTALL)
-    for num, content in pdf_parts: 
-        source_map[f"Trang {num}"] = content.strip()
-        
-    # Tìm nội dung theo đoạn (Word)
-    doc_parts = re.findall(r"\[DOAN_(\d+)\]\n(.*?)(?=\n\[DOAN_|\Z)", text, re.DOTALL)
-    for num, content in doc_parts:
-        source_map[f"Đoạn {num}"] = content.strip()
-        
+    # 1. Xử lý PDF (Trang)
+    chunks = re.split(r"\[TRANG_(\d+)\]", text)
+    for i in range(1, len(chunks), 2):
+        page_num = chunks[i]
+        content = chunks[i+1].strip()
+        if content:
+            source_map[f"Trang {page_num}"] = content
+
+    # 2. Xử lý Word (Đoạn -> Trích đoạn)
+    chunks_doc = re.split(r"\[DOAN_(\d+)\]", text)
+    for i in range(1, len(chunks_doc), 2):
+        para_num = chunks_doc[i]
+        content = chunks_doc[i+1].strip()
+        if content:
+            # Lưu key khớp với logic hiển thị mới là "Trích đoạn"
+            source_map[f"Trích đoạn {para_num}"] = content
+            # Lưu thêm key cũ "Đoạn" để đề phòng tương thích ngược
+            source_map[f"Đoạn {para_num}"] = content
+            
     return source_map
