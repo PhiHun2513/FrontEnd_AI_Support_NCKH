@@ -3,9 +3,8 @@ import requests
 # Địa chỉ API Java (Backend)
 BASE_URL = "http://localhost:8080/api"
 
-# ==========================================
-# 1. NHÓM HÀM XỬ LÝ USER (ĐĂNG NHẬP/ĐK)
-# ==========================================
+
+#XỬ LÝ USER 
 def login(username, password):
     """Gửi yêu cầu đăng nhập"""
     try:
@@ -31,13 +30,10 @@ def register(username, password):
         print(f"Lỗi register: {e}")
         return None
 
-# ==========================================
-# 2. NHÓM HÀM XỬ LÝ FOLDER (CÓ USER_ID)
-# ==========================================
+# XỬ LÝ FOLDER 
 def get_all_folders(user_id):
     """Lấy danh sách folder của RIÊNG user đó"""
     try:
-        # Gửi userId lên để Java lọc
         response = requests.get(f"{BASE_URL}/folders?userId={user_id}")
         if response.status_code == 200:
             return response.json()
@@ -49,7 +45,6 @@ def get_all_folders(user_id):
 def create_new_folder(name, description, user_id):
     """Tạo folder mới gắn với user_id"""
     try:
-        # Gửi userId kèm theo tên và mô tả
         params = {'name': name, 'desc': description, 'userId': user_id}
         response = requests.post(f"{BASE_URL}/folders", params=params)
         return response.status_code == 200
@@ -76,9 +71,9 @@ def delete_folder(folder_id):
         print(f"Lỗi delete folder: {e}")
         return False
 
-# ==========================================
-# 3. NHÓM HÀM XỬ LÝ DOCUMENT & CHAT
-# ==========================================
+
+# XỬ LÝ DOCUMENT & CHAT
+
 def upload_file_to_java(uploaded_file, folder_id=None, extracted_text=""):
     try:
         files = {
@@ -141,3 +136,57 @@ def save_chat_message(folder_id, role, content):
     except Exception as e:
         print(f"Lỗi lưu tin nhắn: {e}")
         return False
+    
+
+# ADMIN
+def get_admin_stats():
+    """Lấy thống kê hệ thống từ Backend"""
+    try:
+        response = requests.get(f"{BASE_URL}/admin/stats")
+        if response.status_code == 200:
+            return response.json()
+        return None
+    except Exception as e:
+        print(f"Lỗi lấy stats: {e}")
+        return None
+
+def get_all_users():
+    """Lấy danh sách tất cả user"""
+    try:
+        response = requests.get(f"{BASE_URL}/admin/users")
+        if response.status_code == 200:
+            return response.json()
+        return []
+    except Exception as e:
+        print(f"Lỗi lấy danh sách user: {e}")
+        return []
+
+def delete_user_by_admin(user_id):
+    """Admin xóa user theo ID"""
+    try:
+        response = requests.delete(f"{BASE_URL}/admin/users/{user_id}")
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Lỗi xóa user: {e}")
+        return False
+def get_all_documents_admin():
+    """Admin lấy danh sách toàn bộ file hệ thống"""
+    try:
+        response = requests.get(f"{BASE_URL}/documents/admin/all")
+        if response.status_code == 200:
+            return response.json()
+        return []
+    except Exception as e:
+        print(f"Lỗi lấy all docs: {e}")
+        return []
+
+def download_document_bytes(doc_id):
+    """Tải nội dung file dưới dạng bytes"""
+    try:
+        response = requests.get(f"{BASE_URL}/documents/download/{doc_id}")
+        if response.status_code == 200:
+            return response.content 
+        return None
+    except Exception as e:
+        print(f"Lỗi download: {e}")
+        return None
