@@ -313,16 +313,13 @@ if st.session_state.delete_success:
 
 # SIDEBAR USER
 with st.sidebar:
-    # 1. THÔNG TIN USER & ĐĂNG XUẤT
     st.header(f"👤 {current_user['username']}")
-    # [QUAN TRỌNG] Thêm key khác biệt để tránh lỗi Duplicate ID với Admin
     if st.button("Đăng xuất", type="secondary", use_container_width=True, key="user_logout_sidebar_final"):
         st.session_state.user_info = None
         st.rerun()
     
-    st.divider()
     
-    # 2. TẠO ĐỀ TÀI MỚI
+    # TẠO ĐỀ TÀI MỚI
     st.subheader("📂 Quản lý Đề tài")
     with st.expander("➕ Tạo Đề tài mới"):
         with st.form("create_folder_form", clear_on_submit=True):
@@ -362,7 +359,6 @@ with st.sidebar:
         if s_id:
             with st.spinner("Đang tải dữ liệu..."):
                 refresh_current_folder()
-                # Tải lịch sử chat từ Server
                 hist = api.get_chat_history(s_id)
                 for m in hist:
                     st.session_state.messages.append({"role": m["role"], "content": m["content"]})
@@ -461,9 +457,8 @@ with st.sidebar:
                         st.session_state.delete_success = True
                         st.rerun()
     
-    st.divider()
 
-    # 5. UPLOAD FILE (CÓ THÔNG BÁO TẠI CHỖ)
+    # 5. UPLOAD FILE 
     st.subheader("⬆️ Tải tài liệu")
 
     # Hiển thị thông báo thành công ngay tại đây
@@ -484,7 +479,6 @@ with st.sidebar:
                     cnt += 1
             
             if cnt > 0:
-                # Gán thông báo vào biến session
                 st.session_state.sidebar_upload_status = f"Đã thêm {cnt} tài liệu mới!"
                 refresh_current_folder()
                 st.rerun()
@@ -563,7 +557,6 @@ with st.popover(popover_label, use_container_width=False):
     st.divider()
     st.caption("🔍 **Tra cứu:** để đảm bảo tính xác thực nguồn tin.\n\n💡 **Sáng tạo:** để khai thác chiều sâu và phát triển luận điểm.")
    
-# ------------------------------------------------------------------
 
 mode_key = "strict" if st.session_state.selected_ai_mode == "🔍 Tra cứu chính xác" else "creative"
 
