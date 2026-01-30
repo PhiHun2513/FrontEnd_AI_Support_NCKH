@@ -4,7 +4,6 @@ from google import genai
 from google.genai import types 
 from pypdf import PdfReader
 from docx import Document 
-import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -39,7 +38,6 @@ def get_file_text(uploaded_file):
         return ""
 
 def create_source_map(text):
-    # (Giữ nguyên hàm này như cũ)
     source_map = {}
     parts = text.split("[SOURCE: ")
     for part in parts:
@@ -121,7 +119,7 @@ def ask_gemini(content, prompt, mode="strict"):
         
         full_query = f"{system_prompt}\n\n--- DỮ LIỆU TÀI LIỆU ---\n{content}\n\n--- CÂU HỎI NGƯỜI DÙNG ---\n{prompt}"
         
-        # TỰ ĐỘNG THỬ LẠI KHI SERVER QUÁ TẢI (LỖI 503)
+        # TỰ ĐỘNG THỬ LẠI KHI SERVER QUÁ TẢI (LỖI 503 và 429)
         max_retries = 3 
         for attempt in range(max_retries):
             try:

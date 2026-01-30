@@ -1,6 +1,6 @@
 import requests
 
-# Địa chỉ API Java (Backend)
+# Địa chỉ API Backend
 BASE_URL = "http://localhost:8080/api"
 
 
@@ -9,10 +9,9 @@ def login(username, password):
     """Gửi yêu cầu đăng nhập"""
     try:
         data = {"username": username, "password": password}
-        # Gọi vào API UserController bên Java
         response = requests.post(f"{BASE_URL}/users/login", json=data)
         if response.status_code == 200:
-            return response.json() # Trả về thông tin User (id, username...)
+            return response.json() 
         return None
     except Exception as e:
         print(f"Lỗi login: {e}")
@@ -71,9 +70,7 @@ def delete_folder(folder_id):
         print(f"Lỗi delete folder: {e}")
         return False
 
-
 # XỬ LÝ DOCUMENT & CHAT
-
 def upload_file_to_java(uploaded_file, folder_id=None, extracted_text=""):
     try:
         files = {
