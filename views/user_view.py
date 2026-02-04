@@ -129,7 +129,6 @@ def render_user_interface():
     if "show_history" not in st.session_state:
         st.session_state.show_history = True
     
-    # Tạo container cho các nút điều khiển
     with st.container(border=True):
         col_tools_1, col_tools_2 = st.columns([0.7, 0.3])
         with col_tools_1:
@@ -152,7 +151,7 @@ def render_user_interface():
                 st.session_state.show_history = not st.session_state.show_history
                 st.rerun()
 
-    # 3. NỘI DUNG CHÍNH (CHIA KHUNG CUỘN RIÊNG)
+    # NỘI DUNG CHÍNH
     if st.session_state.show_history:
         col_chat, col_hist = st.columns([0.7, 0.3], gap="small")
     else:
@@ -192,14 +191,12 @@ def render_user_interface():
                                     ans_text = next_msg["content"]
                             dialogs.show_chat_detail(q_content, ans_text, st.session_state.source_map)
                             
-    # 4. INPUT CHAT (LUÔN Ở DƯỚI CÙNG)   
-    mode_key = "strict" if st.session_state.selected_ai_mode == "🔍 Tra cứu chính xác" else "creative"
-    
+    # 4. INPUT CHAT 
+    mode_key = "strict" if st.session_state.selected_ai_mode == "🔍 Tra cứu chính xác" else "creative"   
     if prompt := st.chat_input("Nhập câu hỏi nghiên cứu..."):
         if not st.session_state.current_folder_id:
             st.warning("⚠️ Vui lòng chọn một đề tài trước khi hỏi!")
             st.stop()
-        # Hiển thị ngay câu hỏi người dùng
         st.session_state.messages.append({"role": "user", "content": prompt})
         api.save_chat_message(st.session_state.current_folder_id, "user", prompt)
         st.rerun() 
