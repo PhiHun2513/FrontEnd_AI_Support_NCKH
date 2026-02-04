@@ -96,3 +96,25 @@ div[data-testid="stDialog"] .stButton button:hover {
     background-color: #d93434 !important;
     transform: scale(1.02); /* Nhích nhẹ khi hover */
 }
+/* Ẩn các ký hiệu list mặc định của thẻ summary trên mọi trình duyệt */
+details > summary {
+  list-style: none;
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Đảm bảo popup trích dẫn luôn nổi lên trên cùng */
+details[open] > div {
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Fix lỗi hiển thị code thô: Đảm bảo vùng chat render HTML đúng */
+.stMarkdown {
+    font-family: 'Source Sans Pro', sans-serif;
+}

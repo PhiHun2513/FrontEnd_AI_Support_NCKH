@@ -45,14 +45,15 @@ def render_user_interface():
         if s_id != st.session_state.current_folder_id:
             st.session_state.current_folder_id = s_id
             st.session_state.messages = []
+            st.session_state.prompt_history = [] 
             if s_id:
                 with st.spinner("Đang nạp dữ liệu..."):
                     utils.refresh_current_folder()
                     hist = api.get_chat_history(s_id)
-                    for m in hist: st.session_state.messages.append({"role": m["role"], "content": m["content"]})
-            else:
-                st.session_state.pdf_content = ""
-                st.session_state.source_map = {}
+                    for m in hist: 
+                        st.session_state.messages.append({"role": m["role"], "content": m["content"]})
+                        if m.get("optimizedPrompt"):
+                            st.session_state.prompt_history.append(m["optimizedPrompt"])
             st.rerun()
 
         # Cài đặt Folder
@@ -93,9 +94,19 @@ def render_user_interface():
                     else: st.info("Chưa có tài liệu.")
 
                 with t3:
-                    if st.button("Xóa vĩnh viễn Đề tài", type="primary", use_container_width=True):
-                        if api.delete_folder(s_id):
-                            st.session_state.current_folder_id = None; st.session_state.delete_success = True; st.rerun()
+                    def on_delete_folder(folder_id_to_delete):
+                        if api.delete_folder(folder_id_to_delete):
+                            st.session_state.current_folder_id = None 
+                            st.session_state.delete_success = True
+                            st.session_state.folder_selectbox_key = "-- Chọn đề tài --"
+
+                    st.button(
+                        "Xóa vĩnh viễn Đề tài. Không thể hoàn tác!", 
+                        type="primary", 
+                        use_container_width=True,
+                        on_click=on_delete_folder,  
+                        args=(s_id,)               
+                    )
 
             # Upload file
             st.divider(); st.subheader("⬆️ Upload tài liệu")
@@ -118,7 +129,6 @@ def render_user_interface():
 
     # HEADER & TOOLS
     st.title("🛡️ Trợ lý AI hỗ trợ Nghiên cứu Khoa học")
-    # Toast thông báo
     if st.session_state.upload_success_count > 0:
         st.toast(f"✅ Đã lưu {st.session_state.upload_success_count} file!", icon="🎉")
         st.session_state.upload_success_count = 0        
@@ -174,22 +184,36 @@ def render_user_interface():
     # KHUNG LỊCH SỬ 
     if col_hist:
         with col_hist:
-            st.caption("📚 Lịch sử câu hỏi")
-            with st.container(height=440, border=True):
-                user_qs = [(i, m["content"]) for i, m in enumerate(st.session_state.messages) if m["role"] == "user"]
+            st.caption("📚 Lịch sử hệ thống")
+            tab_chat_hist, tab_prompt_hist = st.tabs(["💬 Tin nhắn", "🤖 Prompt AI"])  
+            with tab_chat_hist:
+                with st.container(height=440, border=True):
+                    user_qs = [(i, m["content"]) for i, m in enumerate(st.session_state.messages) if m["role"] == "user"]
+                    if not user_qs:
+                        st.caption("Chưa có lịch sử.")
+                    else:
+                        for idx, q_content in reversed(user_qs):
+                            display_text = q_content[:40] + "..." if len(q_content) > 40 else q_content
+                            if st.button(f"❓ {display_text}", key=f"hist_btn_{idx}", use_container_width=True):
+                                ans_text = "⏳ Đang xử lý..."
+                                if idx + 1 < len(st.session_state.messages):
+                                    next_msg = st.session_state.messages[idx+1]
+                                    if next_msg["role"] == "assistant":
+                                        ans_text = next_msg["content"]
+                                dialogs.show_chat_detail(q_content, ans_text, st.session_state.source_map)
 
-                if not user_qs:
-                    st.caption("Chưa có lịch sử.")
-                else:
-                    for idx, q_content in reversed(user_qs):
-                        display_text = q_content[:40] + "..." if len(q_content) > 40 else q_content
-                        if st.button(f"❓ {display_text}", key=f"hist_btn_{idx}", use_container_width=True):
-                            ans_text = "⏳ Đang xử lý..."
-                            if idx + 1 < len(st.session_state.messages):
-                                next_msg = st.session_state.messages[idx+1]
-                                if next_msg["role"] == "assistant":
-                                    ans_text = next_msg["content"]
-                            dialogs.show_chat_detail(q_content, ans_text, st.session_state.source_map)
+            with tab_prompt_hist:
+                st.caption("✨ Các bản thiết kế Prompt")
+                with st.container(height=440, border=True):
+                    if not st.session_state.get("prompt_history"):
+                        st.info("Chưa có prompt tối ưu nào.")
+                    else:
+                        for p_idx, p_content in enumerate(reversed(st.session_state.prompt_history)):
+                            p_label = p_content[:40].replace("\n", " ") + "..."
+                            if st.button(f"⚙️ Prompt {len(st.session_state.prompt_history)-p_idx}: {p_label}", 
+                                        key=f"p_btn_{p_idx}", use_container_width=True):
+                                st.dialog("📜 Cấu trúc Prompt chi tiết")(lambda: st.code(p_content, language="markdown"))()
+    
                             
     # 4. INPUT CHAT 
     mode_key = "strict" if st.session_state.selected_ai_mode == "🔍 Tra cứu chính xác" else "creative"   
@@ -201,16 +225,27 @@ def render_user_interface():
         api.save_chat_message(st.session_state.current_folder_id, "user", prompt)
         st.rerun() 
 
-    # Xử lý phản hồi AI 
+    # XỬ LÝ PHẢN HỒI AI 
     if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
         last_msg = st.session_state.messages[-1]["content"]
-        with st.chat_message("assistant"): 
-             pass      
-        if st.session_state.pdf_content:
-            with st.spinner("AI đang phân tích tài liệu..."):
-                ans = ai.ask_gemini(st.session_state.pdf_content, last_msg, mode=mode_key)
-                st.session_state.messages.append({"role": "assistant", "content": ans})
-                api.save_chat_message(st.session_state.current_folder_id, "assistant", ans)
+        with col_chat:
+            with st.chat_message("assistant", avatar="💠"):
+                with st.status("🔖 AI đang phân tích câu hỏi...", expanded=False) as status:
+                    stream_obj, opt_prompt = ai.ask_gemini_stream(st.session_state.pdf_content, last_msg, mode=mode_key)
+                    status.update(label="✅ Đã tối ưu câu hỏi! Đang phân tích tài liệu...", state="complete")
+                
+                placeholder = st.empty()
+                full_response = ""
+                
+                for chunk in stream_obj:
+                    if chunk.text:
+                        full_response += chunk.text
+                        placeholder.markdown(full_response + "▌")
+                
+                #Sau khi stream xong, mới bắt đầu định dạng trích dẫn
+                final_formatted = utils.format_answer_with_clickable_details(full_response, st.session_state.source_map)
+                placeholder.markdown(final_formatted, unsafe_allow_html=True)
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                st.session_state.prompt_history.append(opt_prompt)
+                api.save_chat_message(st.session_state.current_folder_id, "assistant", full_response, opt_prompt)
                 st.rerun()
-        else:
-             st.warning("⚠️ Đề tài này chưa có tài liệu.")

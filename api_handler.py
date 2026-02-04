@@ -125,16 +125,20 @@ def get_chat_history(folder_id):
         print(f"Lỗi lấy lịch sử chat: {e}")
         return []
 
-def save_chat_message(folder_id, role, content):
+def save_chat_message(folder_id, role, content, optimized_prompt=None):
+    """Gửi yêu cầu lưu tin nhắn kèm Prompt tối ưu (nếu có) sang Backend Java"""
     try:
-        data = {"folderId": folder_id, "role": role, "content": content}
+        data = {
+            "folderId": folder_id, 
+            "role": role, 
+            "content": content,
+            "optimizedPrompt": optimized_prompt
+        }
         requests.post(f"{BASE_URL}/chat/save", json=data)
         return True
     except Exception as e:
         print(f"Lỗi lưu tin nhắn: {e}")
         return False
-    
-
 # ADMIN
 def get_admin_stats():
     """Lấy thống kê hệ thống từ Backend"""
