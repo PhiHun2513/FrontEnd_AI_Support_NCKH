@@ -46,37 +46,54 @@ def get_file_text(uploaded_file):
     return content_with_tags
 
 def create_source_map(text):
-    """Tạo bản đồ nguồn dữ liệu để truy xuất nội dung gốc khi người dùng click vào icon."""
     source_map = {}
     parts = re.split(r'(\[SOURCE: .*?\])', text)
-    current_source = None
+    current_full_key = None
+    current_doan_key = None
+
     for part in parts:
         if part.startswith('[SOURCE:'):
-            current_source = part.strip()
-        elif current_source and part.strip():
-            source_map[current_source] = part.strip()
+            match = re.search(
+                r"SOURCE:\s*(.*?)\s*\|\s*(TRANG|DOAN):\s*(\d+)",
+                part
+            )
+            if match:
+                fname, type_tag, num = match.groups()
+                clean_type = "Trang" if type_tag == "TRANG" else "Trích đoạn"
+                current_full_key = f"{fname} - {clean_type} {num}"
+                current_doan_key = f"DOAN {num}" if type_tag == "DOAN" else None
+
+        elif current_full_key and part.strip():
+            content = part.strip()
+            source_map[current_full_key] = content
+            if current_doan_key:
+                source_map[current_doan_key] = content
+
     return source_map
 
+
 def ask_gemini_stream(content, prompt, mode="strict"):
-    """
-    Quy trình Đa tác nhân (Multi-agent) hỗ trợ Streaming:
-    Bước 1: AI Kiến trúc sư (Architect) thiết kế Prompt tối ưu.
-    Bước 2: AI Thực thi (Executor) trả về luồng dữ liệu kèm trích dẫn.
-    """
     try:
         client = get_client()
         if not client:
             def error_key(): yield "Lỗi: Chưa cấu hình API Key trong file .env"
             return error_key(), ""
 
-        # QUY TẮC TRÍCH DẪN 
+        # QUY TẮC TRÍCH DẪN BẮT BUỘC
         citation_rule = (
-            "QUY TẮC TRÍCH DẪN THÔNG MINH (BẮT BUỘC):\n"
-            "1. CHỈ trích dẫn khi kết thúc một ý hoàn chỉnh hoặc một đoạn văn. KHÔNG trích dẫn lặp lại sau từng câu đơn lẻ nếu cùng một nguồn.\n"
-            "2. Ví dụ SAI: Câu 1 (Nguồn A). Câu 2 (Nguồn A).\n"
-            "3. Ví dụ ĐÚNG: Câu 1 và Câu 2 tổng hợp lại ý tưởng này (Nguồn A).\n"
-            "4. Định dạng bắt buộc: (Nguồn: TênFile - Trang X).\n"
-            "5. Tuyệt đối không gộp trang kiểu 'Trang 11-12'. Hãy viết tách: (Nguồn: ... Trang 11) (Nguồn: ... Trang 12) nếu nội dung nằm vắt qua 2 trang."
+            "BẠN ĐANG LÀM VIỆC TRONG HỆ THỐNG NGHIÊN CỨU KHOA HỌC KHẮT KHE.\n"  
+            "1. ƯU TIÊN NGUỒN: Luôn ưu tiên trích dẫn từ 'DỮ LIỆU TÀI LIỆU (CONTEXT)' trước. Chỉ dùng Google Search khi thông tin không có trong tài liệu.\n\n"      
+            "2. VỊ TRÍ ĐẶT NHÃN: CHỈ trích dẫn một lần duy nhất khi kết thúc một ý hoàn chỉnh hoặc một đoạn văn. KHÔNG trích dẫn sau mỗi câu đơn lẻ.\n\n"           
+            "3. ĐỊNH DẠNG TÀI LIỆU NỘI BỘ (BẮT BUỘC): (Nguồn: TênFile - Trang X) hoặc (Nguồn: TênFile - Đoạn X).\n"
+            "   - Ví dụ: (Nguồn: Bao_cao_2025.pdf - Trang 12).\n"
+            "   - TUYỆT ĐỐI KHÔNG gộp trang kiểu 'Trang 11, 12'. Phải tách riêng từng nhãn.\n\n"
+            "4. ĐỊNH DẠNG NGUỒN INTERNET (BẮT BUỘC): (Nguồn: Google Search - [Tiêu đề trang] - [Link URL]).\n"
+            "   - Ví dụ: (Nguồn: Google Search - Xu hướng AI 2026 - https://example.com/article).\n"
+            "   - Link URL phải bắt đầu bằng http hoặc https và là link thực tế từ kết quả tìm kiếm.\n\n"     
+            "5. CHỐNG ẢO GIÁC (HALLUCINATION):\n"
+            "   - KHÔNG tự bịa đặt số trang nếu không thấy trong nhãn [SOURCE: ...] của Context.\n"
+            "   - KHÔNG tự ý chế URL hoặc thêm các ký tự rác vào cuối URL. Nếu không có link thực, ghi: (Nguồn: Kiến thức hệ thống).\n"
+            "   - Tuyệt đối không bịa đặt thông tin không có thật.\n\n"
         )
 
         # AI Xây dựng prompt
@@ -114,7 +131,6 @@ def ask_gemini_stream(content, prompt, mode="strict"):
             f"--- CÂU HỎI TỪ NGƯỜI DÙNG ---\n{prompt}"
         )
 
-        # Trả về luồng dữ liệu liên tục
         response_stream = client.models.generate_content_stream(
             model='gemini-2.5-flash', 
             contents=full_query,
